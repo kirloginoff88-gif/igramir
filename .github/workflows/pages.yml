@@ -1,0 +1,42 @@
+name: Deploy visualizer to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/configure-pages@v5
+      - name: Configure public API address
+        env:
+          API_ORIGIN: ${{ vars.IGRAMIR_API_ORIGIN }}
+        run: |
+          node <<'JS'
+          const fs = require('node:fs');
+          const origin = process.env.API_ORIGIN;
+          if (origin && (new URL(origin).protocol !== 'https:' || new URL(origin).origin !== origin)) {
+            throw new Error('IGRAMIR_API_ORIGIN must be an HTTPS origin without a trailing slash');
+          }
+          fs.writeFileSync('dist/config.js', 'window.igramirApiOrigin = ' + JSON.stringify(origin || '') + ';\n');
+          JS
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: dist
+      - id: deployment
+        uses: actions/deploy-pages@v4
